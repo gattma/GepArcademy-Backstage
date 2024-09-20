@@ -1,0 +1,151 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: quarkus-template
+  title: Quarkus REST Service
+  description: Create a simple microservice using REST and Quarkus
+  tags:
+    - recommended
+    - java
+    - rest
+    - quarkus
+spec:
+  owner: gattma
+  type: service
+  
+  parameters:
+    - title: Provide some simple information
+      required:
+        - component_id
+        - owner
+        - java_package_name
+        - application
+        - description
+      properties:
+        component_id:
+          title: Name
+          type: string
+          description: Unique name of the component
+        java_package_name:
+          title: Java Package Name
+          type: string
+          description: Name for the java package. eg (io.backstage.blah)
+        description:
+          title: Description
+          type: string
+          description: Help others understand what this website is for.
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the component
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: 
+              - Group
+        application:
+          title: Application
+          type: string
+          description: Application which this component belongs to
+          #enum: ["app-1", "app-2", "app-3",app-4]
+          ui:field: OwnedEntityPicker
+          ui:options:
+            allowedKinds:
+            - System       
+    - title: Choose a location  
+      required:
+        - repoUrl
+      properties: 
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - gattma
+
+  steps:
+    - id: templateSrc
+      name: Code Fetch Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        copyWithoutRender: []
+        values:
+          component_id: ${{ parameters.component_id }}
+          description: ${{ parameters.description }}
+          artifact_id: ${{ parameters.component_id }}
+          java_package_name: ${{ parameters.java_package_name }}
+          owner: ${{ parameters.owner }}
+          destination: ${{ parameters.repoUrl | parseRepoUrl }}
+          http_port: 8080
+          application: ${{ parameters.application }}
+          
+    - id: publishSrc
+      name: Publish Source Repo
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: This is ${{ parameters.component_id }}
+        repoUrl: ${{ parameters.repoUrl }}
+        repoVisibility: public
+        deleteBranchOnMerge: true
+        #access: raf-backstage-demo/${{ parameters.owner }}
+        #baseURL: control-cluster-raffa.demo.red-chesterfield.com
+        protectDefaultBranch: false
+        defaultBranch: main     
+
+    - id: registerSrc
+      name: Register Source Repo
+      action: catalog:register
+      input:
+        repoContentsUrl: '${{ steps.publishSrc.output.repoContentsUrl }}'
+        catalogInfoPath: '/catalog-info.yaml'
+
+    - id: templateCI
+      name: Code Fetch Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./skeletonCiRepo
+        copyWithoutRender: []
+        values:
+          component_id: ${{ parameters.component_id }}
+          description: ${{ parameters.description }}
+          artifact_id: ${{ parameters.component_id }}
+          java_package_name: ${{ parameters.java_package_name }}
+          owner: ${{ parameters.owner }}
+          destination: ${{ parameters.repoUrl | parseRepoUrl }}-ci
+          http_port: 8080
+          application: ${{ parameters.application }}
+        targetPath: ./ci-repo
+          
+    - id: publishCI
+      name: Publish CI Repo
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: This is ${{ parameters.component_id }}-ci
+        repoUrl: ${{ parameters.repoUrl }}-ci
+        repoVisibility: public
+        deleteBranchOnMerge: true
+        protectDefaultBranch: false
+        sourcePath: ./ci-repo
+        defaultBranch: main
+
+    - id: registerCi
+      name: Register CI Repo
+      action: catalog:register
+      input:
+        repoContentsUrl: '${{ steps.publishCI.output.repoContentsUrl }}'
+        catalogInfoPath: '/catalog-info.yaml'
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publishSrc.output.remoteUrl }}
+      - title: Repository (Ci)
+        url: ${{ steps.publishCI.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.registerSrc.output.entityRef }}

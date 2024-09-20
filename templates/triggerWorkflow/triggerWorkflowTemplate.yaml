@@ -1,0 +1,51 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: onboard-repo
+  title: Onboard new repo to renovate
+  description: Onboards a new repository to global renovate
+  tags: ['recommended']
+spec:
+  owner: gattma
+  type: service
+  parameters:
+    - title: Repo Infos
+      required:
+         - RepoName
+         - RepoOrgUser 
+      properties:
+        RepoName:
+          title: Repository name.
+          type: string
+          description: Name of the repository.
+          ui:autofocus: true
+          ui:options:
+            rows: 1
+        RepoOrgUser:
+          title: Repository org/user.
+          type: string
+          description: Name of the repository owner (user / organization).
+          ui:options:
+            rows: 1
+
+  steps:
+# Triggering CI-CD to create resource in our case github action. 
+    - id: github-action
+      name: Starting GitHub action
+      action: github:actions:dispatch
+      input:
+        workflowId:  onboard-repo.yaml # ID of GitHub action WorkFlow
+        repoUrl: 'github.com?repo=renovate&owner=gattma'
+        branchOrTagName: 'main'
+        workflowInputs:
+          repoName: ${{ parameters.RepoName }}
+          repoOrgUser: ${{ parameters.RepoOrgUser }}
+
+# Output links  are displayed to the user after the template execution.
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

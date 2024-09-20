@@ -1,0 +1,1 @@
+export { GeparcedemyPage } from './GeparcedemyPage';
